@@ -35,7 +35,8 @@ int handle_builtin(char** arglist) {
         printf("  cd <dir>     Change the current directory\n");
         printf("  help         Show this help message\n");
         printf("  jobs         List background jobs (not yet implemented)\n");
-        return 1;
+        printf("  history      Show command history (use !n to re-run)\n");
+	return 1;
     }
 
     /* ---- jobs ---- */
@@ -44,5 +45,10 @@ int handle_builtin(char** arglist) {
         return 1;
     }
 
+	    /* ---- history ---- */
+    if (strcmp(arglist[0], "history") == 0) {
+        hist_print();
+        return 1;
+    }
     return 0;   /* not a built-in */
 }

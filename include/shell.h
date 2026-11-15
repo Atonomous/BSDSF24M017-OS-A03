@@ -1,5 +1,6 @@
 #ifndef SHELL_H
 #define SHELL_H
+#define HISTORY_SIZE 20
 
 #include <stdio.h>
 #include <string.h>
@@ -19,4 +20,7 @@ char* read_cmd(char* prompt, FILE* fp);
 char** tokenize(char* cmdline);
 int execute(char** arglist);
 int handle_builtin(char** arglist);
+void hist_add(const char* cmd);
+const char* hist_get(int n);
+void hist_print(void);
 #endif // SHELL_H
