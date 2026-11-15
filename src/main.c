@@ -85,18 +85,16 @@ int main() {
             printf("%s\n", cmdline);      /* show what is being re-run */
         }
 
-        if ((arglist = tokenize(cmdline)) != NULL) {
-            hist_add(cmdline);            /* store only real commands */
-	    add_history(cmdline);
+        pipeline_t pl;
+        if (parse_pipeline(cmdline, &pl) > 0) {   /* 1 = parsed, 0 = empty, -1 = error */
+            hist_add(cmdline);
+            add_history(cmdline);
 
-            if (!handle_builtin(arglist)) {
-                execute(arglist);
+            /* a built-in is only run directly when it is a single, plain command */
+            if (!(pl.ncmds == 1 && handle_builtin(pl.cmds[0].argv))) {
+                execute_pipeline(&pl);
             }
-
-            for (int i = 0; arglist[i] != NULL; i++) {
-                free(arglist[i]);
-            }
-            free(arglist);
+            free_pipeline(&pl);
         }
         free(cmdline);
     }
