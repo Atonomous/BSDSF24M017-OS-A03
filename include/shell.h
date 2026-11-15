@@ -1,6 +1,7 @@
 #ifndef SHELL_H
 #define SHELL_H
 #define HISTORY_SIZE 256
+#define MAX_CMDS 10
 
 #include <stdio.h>
 #include <string.h>
@@ -23,4 +24,20 @@ int handle_builtin(char** arglist);
 void hist_add(const char* cmd);
 const char* hist_get(int n);
 void hist_print(void);
+
+typedef struct {
+    char* argv[MAXARGS + 1];   /* NULL-terminated argument list */
+    char* infile;              /* file after '<', or NULL */
+    char* outfile;             /* file after '>', or NULL */
+} command_t;
+
+typedef struct {
+    command_t cmds[MAX_CMDS];  /* one entry per stage of the pipeline */
+    int ncmds;
+} pipeline_t;
+
+int  parse_pipeline(const char* line, pipeline_t* p);
+void free_pipeline(pipeline_t* p);
+int  execute_pipeline(pipeline_t* p);
+
 #endif // SHELL_H
