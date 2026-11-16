@@ -2,7 +2,7 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <dirent.h>
-
+#include <ctype.h>
 
 
 static const char* builtin_names[] =
@@ -59,12 +59,46 @@ static char** shell_completion(const char* text, int start, int end) {
 }
 
 
-int main() {
-        rl_attempted_completion_function = shell_completion;
-    char* cmdline;
-    char** arglist;
+static int has_text(const char* s) {
+    for (; *s; s++)
+        if (!isspace((unsigned char)*s)) return 1;
+    return 0;
+}
 
-    while ((cmdline = readline(PROMPT)) != NULL) {
+/* Run one ';'-separated piece: detect a trailing '&', parse, execute. */
+static void run_segment(char* seg) {
+    int bg = 0;
+
+    while (isspace((unsigned char)*seg)) seg++;            /* trim left */
+    size_t len = strlen(seg);
+    while (len > 0 && isspace((unsigned char)seg[len - 1]))
+        seg[--len] = '\0';                                 /* trim right */
+
+    if (len > 0 && seg[len - 1] == '&') {                  /* background flag */
+        bg = 1;
+        seg[--len] = '\0';
+        while (len > 0 && isspace((unsigned char)seg[len - 1]))
+            seg[--len] = '\0';
+    }
+
+    pipeline_t pl;
+    if (parse_pipeline(seg, &pl) > 0) {
+        if (bg || !(pl.ncmds == 1 && handle_builtin(pl.cmds[0].argv)))
+            execute_pipeline(&pl, bg, seg);
+        free_pipeline(&pl);
+    }
+}
+
+
+
+int main() {
+    char* cmdline;
+    rl_attempted_completion_function = shell_completion;
+
+    while (1) {
+        jobs_reap();                          /* collect finished bg jobs BEFORE the prompt */
+        cmdline = readline(PROMPT);
+        if (cmdline == NULL) break;           /* Ctrl+D */
 
         /* !n : replace the line with the n-th history command */
         if (cmdline[0] == '!') {
@@ -82,23 +116,26 @@ int main() {
             }
             free(cmdline);
             cmdline = strdup(found);
-            printf("%s\n", cmdline);      /* show what is being re-run */
+            printf("%s\n", cmdline);
         }
 
-        pipeline_t pl;
-        if (parse_pipeline(cmdline, &pl) > 0) {   /* 1 = parsed, 0 = empty, -1 = error */
+        if (has_text(cmdline)) {              /* store the WHOLE line once */
             hist_add(cmdline);
             add_history(cmdline);
-
-            /* a built-in is only run directly when it is a single, plain command */
-            if (!(pl.ncmds == 1 && handle_builtin(pl.cmds[0].argv))) {
-                execute_pipeline(&pl);
-            }
-            free_pipeline(&pl);
         }
+
+        /* split on ';' and run each piece in order */
+        char* copy = strdup(cmdline);
+        char* save = NULL;
+        for (char* seg = strtok_r(copy, ";", &save); seg;
+             seg = strtok_r(NULL, ";", &save))
+            run_segment(seg);
+        free(copy);
+
         free(cmdline);
     }
 
     printf("\nShell exited.\n");
     return 0;
-}
+}   
+

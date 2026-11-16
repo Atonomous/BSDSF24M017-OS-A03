@@ -38,6 +38,9 @@ typedef struct {
 
 int  parse_pipeline(const char* line, pipeline_t* p);
 void free_pipeline(pipeline_t* p);
-int  execute_pipeline(pipeline_t* p);
+int  execute_pipeline(pipeline_t* p, int background, const char* cmdtext);
+void jobs_add(pid_t pid, const char* cmd);
+void jobs_reap(void);
+void jobs_print(void);
 
 #endif // SHELL_H
