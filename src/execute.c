@@ -75,7 +75,7 @@ int execute_pipeline(pipeline_t* p, int background, const char* cmdtext) {
             setup_redirects(&p->cmds[i]);
             execvp(p->cmds[i].argv[0], p->cmds[i].argv);
             perror(p->cmds[i].argv[0]);
-            exit(1);
+            exit(127);
         }
 
         /* ---- parent ---- */
@@ -92,7 +92,16 @@ int execute_pipeline(pipeline_t* p, int background, const char* cmdtext) {
         return 0;
     }
 
-    for (int i = 0; i < forked; i++)
-        waitpid(pids[i], NULL, 0);
-    return 0;
+    int last_status = 1;                         /* nothing forked = failure */
+    for (int i = 0; i < forked; i++) {
+        int st;
+        waitpid(pids[i], &st, 0);
+        if (i == forked - 1) {                   /* a pipeline's status is its LAST command's */
+            if (WIFEXITED(st))
+                last_status = WEXITSTATUS(st);
+            else if (WIFSIGNALED(st))
+                last_status = 128 + WTERMSIG(st);   /* killed by a signal */
+        }
+    }
+    return last_status;
 }
