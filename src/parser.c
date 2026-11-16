@@ -52,14 +52,31 @@ int parse_pipeline(const char* line, pipeline_t* p) {
             continue;
         }
 
-        /* ordinary word */
-        const char* s = cp;
-        while (*cp && strchr(DELIMS, *cp) == NULL) cp++;
+                /* ordinary word: quotes group characters and are removed */
+        char buf[MAX_LEN];
+        size_t bl = 0;
+        char q = 0;                              /* current quote char, or 0 */
+        while (*cp) {
+            if (q) {
+                if (*cp == q) { q = 0; cp++; continue; }   /* closing quote */
+            } else if (*cp == '"' || *cp == '\'') {
+                q = *cp; cp++; continue;                   /* opening quote */
+            } else if (strchr(DELIMS, *cp) != NULL) {
+                break;                                     /* end of word */
+            }
+            if (bl < sizeof(buf) - 1) buf[bl++] = *cp;
+            cp++;
+        }
+        if (q) {
+            fprintf(stderr, "syntax error: unterminated quote\n");
+            goto fail;
+        }
+        buf[bl] = '\0';
         if (argc >= MAXARGS) {
             fprintf(stderr, "too many arguments\n");
             goto fail;
         }
-        cur->argv[argc++] = strndup(s, cp - s);
+        cur->argv[argc++] = strdup(buf);
     }
 
     /* every stage needs a command name */
