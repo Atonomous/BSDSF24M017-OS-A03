@@ -65,6 +65,35 @@ static int has_text(const char* s) {
     return 0;
 }
 
+/* Look in shell variables first, then the environment ($HOME, $PATH...). */
+static const char* lookup_var(const char* name) {
+    const char* v = var_get(name);
+    return v ? v : getenv(name);
+}
+
+/* If s looks like NAME=..., return the length of NAME, otherwise 0. */
+static size_t assign_name_len(const char* s) {
+    if (!(isalpha((unsigned char)*s) || *s == '_')) return 0;
+    size_t i = 1;
+    while (isalnum((unsigned char)s[i]) || s[i] == '_') i++;
+    return (s[i] == '=') ? i : 0;
+}
+
+/* Replace every word of the form $NAME with its value (empty if unset). */
+static void expand_variables(pipeline_t* p) {
+    for (int i = 0; i < p->ncmds; i++) {
+        for (int j = 0; p->cmds[i].argv[j] != NULL; j++) {
+            char* w = p->cmds[i].argv[j];
+            if (w[0] == '$' && w[1] != '\0') {
+                const char* val = lookup_var(w + 1);
+                char* repl = strdup(val ? val : "");   /* new memory for the result */
+                free(w);                               /* free the old word */
+                p->cmds[i].argv[j] = repl;
+            }
+        }
+    }
+}
+
 /* Run one ';'-separated piece; returns its exit status. */
 static int run_segment(char* seg) {
     int bg = 0, status = 0;
@@ -84,11 +113,30 @@ static int run_segment(char* seg) {
     pipeline_t pl;
     int rc = parse_pipeline(seg, &pl);
     if (rc > 0) {
-        if (bg || !(pl.ncmds == 1 && handle_builtin(pl.cmds[0].argv)))
+        expand_variables(&pl);                   /* $NAME -> value, before anything runs */
+
+        /* a single word like NAME=value is an assignment, not a command */
+        size_t nl = (pl.ncmds == 1 && pl.cmds[0].argv[1] == NULL)
+                        ? assign_name_len(pl.cmds[0].argv[0]) : 0;
+
+        if (nl > 0) {
+            const char* word  = pl.cmds[0].argv[0];
+            const char* value = word + nl + 1;   /* text after the '=' */
+            char name[MAX_LEN];
+            memcpy(name, word, nl);
+            name[nl] = '\0';
+
+            if (value[0] == '$' && value[1] != '\0') {   /* B=$A */
+                const char* v = lookup_var(value + 1);
+                value = v ? v : "";
+            }
+            var_set(name, value);
+        } else if (bg || !(pl.ncmds == 1 && handle_builtin(pl.cmds[0].argv))) {
             status = execute_pipeline(&pl, bg, seg);
+        }
         free_pipeline(&pl);
     } else if (rc < 0) {
-        status = 2;                              /* syntax error */
+        status = 2;
     }
     return status;
 }
@@ -231,6 +279,7 @@ int main() {
         free(cmdline);
     }
 
+    var_free_all();
     printf("\nShell exited.\n");
     return 0;
 }   
