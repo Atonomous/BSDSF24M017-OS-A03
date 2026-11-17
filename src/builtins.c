@@ -51,5 +51,10 @@ int handle_builtin(char** arglist) {
         hist_print();
         return 1;
     }
+        /* ---- set ---- */
+    if (strcmp(arglist[0], "set") == 0) {
+        var_print();
+        return 1;
+    }
     return 0;   /* not a built-in */
 }

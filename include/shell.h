@@ -42,5 +42,9 @@ int  execute_pipeline(pipeline_t* p, int background, const char* cmdtext);
 void jobs_add(pid_t pid, const char* cmd);
 void jobs_reap(void);
 void jobs_print(void);
+void        var_set(const char* name, const char* value);
+const char* var_get(const char* name);
+void        var_print(void);
+void        var_free_all(void);
 
 #endif // SHELL_H
